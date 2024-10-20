@@ -5,7 +5,7 @@
  * @format
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import type {PropsWithChildren} from 'react';
 import {
   SafeAreaView,
@@ -15,6 +15,9 @@ import {
   Text,
   useColorScheme,
   View,
+  Button,
+  Platform,
+  PermissionsAndroid
 } from 'react-native';
 
 import {
@@ -28,35 +31,11 @@ import {
 import PushNotification from 'react-native-push-notification';
 import notifee from '@notifee/react-native';
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+import AudioRecorderPlayer from 'react-native-audio-recorder-player';
+import RNFS from 'react-native-fs'; // Import react-native-fs
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
+const audioRecorderPlayer = new AudioRecorderPlayer();
+
 
 function App(): React.JSX.Element {
   const isDarkMode = useColorScheme() === 'dark';
@@ -65,18 +44,35 @@ function App(): React.JSX.Element {
     backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
   };
 
-  async function onDisplayNotification() {
+  const [recording, setRecording] = useState<boolean>(false);
+  const [recordingPath, setRecordingPath] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+
+  // Request Android permissions
+  const requestPermissions = async (): Promise<void> => {
+    if (Platform.OS === 'android') {
+      try {
+          const audioPermission = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+          if (audioPermission !== PermissionsAndroid.RESULTS.GRANTED) {
+              console.warn('Audio permission denied');
+              return; // Exit if audio permission is denied
+          }
+      } catch (err) {
+          console.warn(err);
+      }
+    }
+  };
+
+  async function displayNotif() {
     // Request permissions (required for iOS)
     try {
       await notifee.requestPermission()
-      console.log('perms')
   
       // Create a channel (required for Android)
       const channelId = await notifee.createChannel({
         id: 'default',
         name: 'Default Channel',
       });
-      console.log('chan')
   
       // Display a notification
       await notifee.displayNotification({
@@ -91,77 +87,100 @@ function App(): React.JSX.Element {
           },
         },
       });
+      console.log('notif created')
     } catch (error) {
-      console.log(error)
+      console.log(error);
     }
-
   }
+
+  // Start recording
+  const startRecording = async (): Promise<void> => {
+    console.log('attempt start')
+    try {
+      setRecording(true);
+      const path = `${RNFS.DocumentDirectoryPath}/${Date.now()}.mp3`; // Use app's private storage
+
+      const result = await audioRecorderPlayer.startRecorder(path);
+      setRecordingPath(result);
+      audioRecorderPlayer.addRecordBackListener((e) => {
+        console.log('Recording...', e.currentPosition);
+      });
+    } catch (error) {
+      console.warn('Error starting recording:', error);
+    }
+  };
+
+  // Stop recording
+  const stopRecording = async (): Promise<void> => {
+    console.log('attempt stop')
+    try {
+      const result = await audioRecorderPlayer.stopRecorder();
+      setRecording(false);
+      audioRecorderPlayer.removeRecordBackListener();
+      console.log('Recording stopped:', result);
+    } catch (error) {
+      console.warn('Error stopping recording:', error);
+    }
+  };
+
+  // Play recorded audio
+  const playRecording = async (): Promise<void> => {
+    if (!recordingPath) return;
+
+    try {
+      setIsPlaying(true);
+      await audioRecorderPlayer.startPlayer(recordingPath);
+      audioRecorderPlayer.addPlayBackListener((e) => {
+        if (e.currentPosition === e.duration) {
+          setIsPlaying(false);
+          audioRecorderPlayer.stopPlayer();
+        }
+      });
+    } catch (error) {
+      console.warn('Error playing recording:', error);
+    }
+  };
+
+  // Stop playing audio
+  const stopPlaying = async (): Promise<void> => {
+    try {
+      await audioRecorderPlayer.stopPlayer();
+      setIsPlaying(false);
+      audioRecorderPlayer.removePlayBackListener();
+    } catch (error) {
+      console.warn('Error stopping playback:', error);
+    }
+  };
 
   useEffect(() => {
     // Configure push notification
-    onDisplayNotification();
+    // displayNotif();
+    requestPermissions();
 
     console.log('triggered')
-
-    // // Trigger a local notification on app launch
-    // PushNotification.localNotification({
-    //   title: "Welcome!", // Title of the notification
-    //   message: "This is a test notification on app launch.", // Message
-    //   importance: 'high', // Set notification priority to high
-    // });
   }, []);
 
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
+    <View style={{ padding: 20 }}>
+      <Button
+        title={recording ? 'Stop Recording' : 'Start Recording'}
+        onPress={recording ? stopRecording : startRecording}
       />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+      {recordingPath && (
+        <>
+          <Text style={{ marginVertical: 20 }}>Recording saved to: {recordingPath}</Text>
+          <Button
+            title={isPlaying ? 'Stop Playback' : 'Play Recording'}
+            onPress={isPlaying ? stopPlaying : playRecording}
+          />
+        </>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
-  },
+
 });
 
 export default App;
