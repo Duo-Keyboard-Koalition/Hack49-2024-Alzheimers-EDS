@@ -5,7 +5,7 @@
  * @format
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import type {PropsWithChildren} from 'react';
 import {
   SafeAreaView,
@@ -24,6 +24,9 @@ import {
   LearnMoreLinks,
   ReloadInstructions,
 } from 'react-native/Libraries/NewAppScreen';
+
+import PushNotification from 'react-native-push-notification';
+import notifee from '@notifee/react-native';
 
 type SectionProps = PropsWithChildren<{
   title: string;
@@ -61,6 +64,52 @@ function App(): React.JSX.Element {
   const backgroundStyle = {
     backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
   };
+
+  async function onDisplayNotification() {
+    // Request permissions (required for iOS)
+    try {
+      await notifee.requestPermission()
+      console.log('perms')
+  
+      // Create a channel (required for Android)
+      const channelId = await notifee.createChannel({
+        id: 'default',
+        name: 'Default Channel',
+      });
+      console.log('chan')
+  
+      // Display a notification
+      await notifee.displayNotification({
+        title: '',
+        body: 'Main body content of the notification',
+        android: {
+          channelId,
+          // smallIcon: 'ic', // optional, defaults to 'ic_launcher'.
+          // pressAction is needed if you want the notification to open the app when pressed
+          pressAction: {
+            id: 'default',
+          },
+        },
+      });
+    } catch (error) {
+      console.log(error)
+    }
+
+  }
+
+  useEffect(() => {
+    // Configure push notification
+    onDisplayNotification();
+
+    console.log('triggered')
+
+    // // Trigger a local notification on app launch
+    // PushNotification.localNotification({
+    //   title: "Welcome!", // Title of the notification
+    //   message: "This is a test notification on app launch.", // Message
+    //   importance: 'high', // Set notification priority to high
+    // });
+  }, []);
 
   return (
     <SafeAreaView style={backgroundStyle}>
