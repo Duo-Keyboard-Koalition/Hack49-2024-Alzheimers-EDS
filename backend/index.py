@@ -66,7 +66,7 @@ def predict(file):
         prediction = model(waveform)
         print(prediction)
 
-    return torch.sigmoid(prediction.detach()).item()
+    return prediction.item()
 
 model_path = './hack49_encoder_decoder_model.pth'
 model = load_model(model_path)
@@ -121,7 +121,6 @@ async def upload_and_classify(file: UploadFile = File(...)):
 
     download_from_s3(BUCKET_NAME, file.filename, file.filename)
 
-    # return {"filename": file.filename}
     print(file.filename)
     return {"prediction": predict(file.filename)} # return prediction
 

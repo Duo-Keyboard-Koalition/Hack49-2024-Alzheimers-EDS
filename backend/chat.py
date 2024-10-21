@@ -20,7 +20,7 @@ def chat(text):
             {
                 "parts": [
                     {
-                        "text": text
+                        "text": "Respond to this prompt, keep your answer as concise as possible: " + text
                     }
                 ]
             }
