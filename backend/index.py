@@ -10,7 +10,7 @@ import speech_recognition as sr
 
 from chat import chat
 from tts import tts
-from model import EncoderDecoder, Decoder
+from model import EncoderDecoder, TimeSeriesClassifier
 
 # Load environment variables from .env file
 load_dotenv()
@@ -21,8 +21,13 @@ recognizer = sr.Recognizer()
 
 def load_model(model_path):
     # Initialize the model architecture
+    input_dim = 29
+    hidden_dim = 15
     encoder = bundle.get_model().to(device)
-    decoder = Decoder().to(device)
+    decoder = TimeSeriesClassifier(input_dim = input_dim, 
+                               num_heads = input_dim, 
+                               hidden_dim = hidden_dim, 
+                               output_dim = 1)
     model = EncoderDecoder(encoder, decoder).to(device)
     
     # Load the state dictionary

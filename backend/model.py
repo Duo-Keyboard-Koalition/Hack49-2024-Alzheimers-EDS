@@ -1,20 +1,34 @@
 import torch.nn as nn
 import torch
 
-class Decoder(nn.Module):
-    def __init__(self):
-        super(Decoder, self).__init__()
-        self.layer1 = nn.Linear(29, 15)
-        self.layer2 = nn.Linear(15, 8)
-        self.output_layer = nn.Linear(8, 1)
+class SelfAttention(nn.Module):
+    def __init__(self, input_dim, num_heads):
+        super(SelfAttention, self).__init__()
+        self.multihead_attn = nn.MultiheadAttention(embed_dim=input_dim, num_heads=num_heads)
+        self.layer_norm = nn.LayerNorm(input_dim)
 
     def forward(self, x):
-        x = torch.relu(self.layer1(x))
-        x = torch.relu(self.layer2(x))
-        x = self.output_layer(x)
-        x = torch.mean(x, dim=1)  # Global Average Pooling over the variable dimension
-        return x[0]
+        attn_output, _ = self.multihead_attn(x, x, x)
+        x = x + attn_output  # Add & Normalize
+        x = self.layer_norm(x)
+        return x
 
+class TimeSeriesClassifier(nn.Module):
+    def __init__(self, input_dim, num_heads, hidden_dim, output_dim):
+        super(TimeSeriesClassifier, self).__init__()
+        self.self_attention = SelfAttention(input_dim, num_heads)
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, output_dim)
+    
+    def forward(self, x):
+        # x: [batch_size, seq_len, input_dim]
+        x = x.permute(1, 0, 2)  # Change to [seq_len, batch_size, input_dim]
+        x = self.self_attention(x)
+        x = x.permute(1, 0, 2)  # Change back to [batch_size, seq_len, input_dim]
+        x = torch.mean(x, dim=1)  # Global Average Pooling over the time dimension
+        x = torch.relu(self.fc1(x))
+        x = torch.sigmoid(self.fc2(x))  # Sigmoid for binary classification
+        return x
 
 # Define the combined Encoder-Decoder model
 class EncoderDecoder(nn.Module):
