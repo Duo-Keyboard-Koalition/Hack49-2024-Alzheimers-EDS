@@ -38,7 +38,7 @@ def predict(file):
         prediction = model(waveform)
         print(prediction)
 
-    return prediction.item()
+    return torch.sigmoid(prediction.detach()).item()
 
 model_path = './hack49_encoder_decoder_model.pth'
 model = load_model(model_path)

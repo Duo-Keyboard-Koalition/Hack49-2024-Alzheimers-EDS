@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import RNFS from 'react-native-fs'; // Import react-native-fs
+import notifee, { AndroidImportance } from '@notifee/react-native'; // Import Notifee
 
 const audioRecorderPlayer = new AudioRecorderPlayer();
 
@@ -28,7 +29,13 @@ function App(): React.JSX.Element {
           console.warn('Audio permission denied');
           return; // Exit if audio permission is denied
         }
-        6;
+
+        // Request notification permission
+        const notificationPermission = await notifee.requestPermission();
+        if (!notificationPermission) {
+          console.warn('Notification permission denied');
+          return; // Exit if notification permission is denied
+        }
       } catch (err) {
         console.warn(err);
       }
@@ -45,6 +52,7 @@ function App(): React.JSX.Element {
       audioRecorderPlayer.addRecordBackListener(e => {
         console.log('Recording...', e.currentPosition);
       });
+
     } catch (error) {
       console.warn('Error starting recording:', error);
     }
@@ -57,6 +65,7 @@ function App(): React.JSX.Element {
       setRecording(false);
       audioRecorderPlayer.removeRecordBackListener();
       console.log('Recording stopped:', result);
+
     } catch (error) {
       console.warn('Error stopping recording:', error);
     }
@@ -104,7 +113,7 @@ function App(): React.JSX.Element {
 
     // Extract the file name from the recordingPath
     const fileName = uri.substring(uri.lastIndexOf('/') + 1);
-    console.log('This is filename: ', fileName);
+    // console.log('This is filename: ', fileName);
 
     formData.append('file', {
       uri: uri,
@@ -122,7 +131,8 @@ function App(): React.JSX.Element {
       });
       console.log('Success', response);
       const data = await response.json();
-      console.log('Upload Response:', data); // Log the server response
+      // console.log('Upload Response:', data); // Log the server response
+      return data;
     } catch (error) {
       console.error('Error uploading audio file:', error);
     }
@@ -134,11 +144,27 @@ function App(): React.JSX.Element {
       console.warn('No recording available to classify.');
       return;
     }
-
     console.log('Classifying recording at:', recordingPath);
 
-    // Call the upload function
-    await uploadAudioToServer(recordingPath);
+    const channelId = await notifee.createChannel({
+      id: 'default',
+      name: 'Default Channel',
+    });
+
+    const result = await uploadAudioToServer(recordingPath);
+    console.log("Model output: " + result['prediction'])
+
+    if (result['prediction'] >= 0.5) {
+      await notifee.displayNotification({
+        title: "Health Checkup",
+        // body: `The classification prediction is: ${result['prediction'] >= 0.5 ? 'Positive' : 'Negative'}`,
+        body: "Hi - we noticed you've been showing subtle signs of mental decline recently and we think it's time for a checkup.",
+        android: {
+          channelId: channelId,
+          importance: AndroidImportance.HIGH,
+        },
+      });
+    }
   };
 
   useEffect(() => {
