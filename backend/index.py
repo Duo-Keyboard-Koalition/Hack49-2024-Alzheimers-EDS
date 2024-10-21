@@ -2,6 +2,46 @@ from fastapi import FastAPI, File, UploadFile
 import boto3
 import os
 from dotenv import load_dotenv
+import torch
+import torchaudio
+from pydub import AudioSegment
+
+
+from model import EncoderDecoder, Decoder
+
+bundle = torchaudio.pipelines.WAV2VEC2_ASR_BASE_960H
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+def load_model(model_path):
+    # Initialize the model architecture
+    encoder = bundle.get_model().to(device)
+    decoder = Decoder().to(device)
+    model = EncoderDecoder(encoder, decoder).to(device)
+    
+    # Load the state dictionary
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.eval()
+    return model
+
+def predict(file):
+    filename = file.split('.')[0]
+    sound = AudioSegment.from_file(file, format="m4a")
+    sound.export(f"{filename}.wav", format="wav")
+
+    waveform, sample_rate = torchaudio.load(filename + ".wav")
+    if sample_rate != bundle.sample_rate:
+        waveform = torchaudio.functional.resample(waveform, sample_rate, bundle.sample_rate)
+
+    waveform = waveform.to(device)
+    print(waveform)
+    with torch.no_grad():
+        prediction = model(waveform)
+        print(prediction)
+
+    return prediction.item()
+
+model_path = './hack49_encoder_decoder_model.pth'
+model = load_model(model_path)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -17,6 +57,10 @@ s3_client = boto3.client('s3',
                          aws_secret_access_key=os.getenv('AWS_SECRET_KEY'))
 
 BUCKET_NAME = 'my-ai-models-darcy'
+
+def download_from_s3(bucket_name, s3_file_path, local_file_path):
+    s3_client.download_file(bucket_name, s3_file_path, local_file_path)
+    print(f"File downloaded: {local_file_path}")
 
 @app.get("/")
 def read_root():
@@ -50,4 +94,9 @@ async def create_upload_file(file: UploadFile = File(...)):
     # Optionally, delete the temporary file after uploading
     os.remove(temp_file_path)
 
-    return {"filename": file.filename}
+    download_from_s3(BUCKET_NAME, file.filename, file.filename)
+
+    # return {"filename": file.filename}
+    print(file.filename)
+    return {"prediction": predict(file.filename)} # return prediction
+

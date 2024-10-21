@@ -39,7 +39,7 @@ function App(): React.JSX.Element {
   const startRecording = async (): Promise<void> => {
     try {
       setRecording(true);
-      const path = `${RNFS.DocumentDirectoryPath}/${Date.now()}.wav`; // Use app's private storage
+      const path = `${RNFS.DocumentDirectoryPath}/${Date.now()}.m4a`; // Use app's private storage
       const result = await audioRecorderPlayer.startRecorder(path);
       setRecordingPath(result);
       audioRecorderPlayer.addRecordBackListener(e => {
@@ -116,7 +116,7 @@ function App(): React.JSX.Element {
       console.log('Uploading: ');
       // Phone : http://localhost:8801/uploadfile/
       // Emulator : http://10.0.2.2:8801/uploadfile/
-      const response = await fetch('http://localhost:8801/uploadfile/', {
+      const response = await fetch('http://localhost:8000/uploadfile/', {
         method: 'POST',
         body: formData,
       });
