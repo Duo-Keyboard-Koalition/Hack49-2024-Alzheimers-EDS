@@ -7,8 +7,10 @@ import {
   Platform,
   PermissionsAndroid,
 } from 'react-native';
+import Sound from 'react-native-sound';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import RNFS from 'react-native-fs'; // Import react-native-fs
+import RNFetchBlob from 'rn-fetch-blob';
 import notifee, { AndroidImportance } from '@notifee/react-native'; // Import Notifee
 
 const audioRecorderPlayer = new AudioRecorderPlayer();
@@ -17,6 +19,7 @@ function App(): React.JSX.Element {
   const [recording, setRecording] = useState<boolean>(false);
   const [recordingPath, setRecordingPath] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [audio, setAudio] = useState<Sound | null>(null); // Update the state type to allow Sound or null
 
   // Request Android permissions
   const requestPermissions = async (): Promise<void> => {
@@ -131,6 +134,8 @@ function App(): React.JSX.Element {
       });
       console.log('Success', response);
       const data = await response.json();
+
+      fetchAudio();
       // console.log('Upload Response:', data); // Log the server response
       return data;
     } catch (error) {
@@ -165,6 +170,60 @@ function App(): React.JSX.Element {
         },
       });
     }
+  };
+
+  // const fetchAudio = async () => {
+  //   console.log('fetching audio');
+  //   const audioUrl = 'http://localhost:8000/get-audio';
+
+  //   RNFetchBlob.config({
+  //     fileCache: true,
+  //     path: RNFetchBlob.fs.dirs.DocumentDir + '/output.mp3', // Path to save the file
+  //   })
+  //     .fetch('GET', audioUrl)
+  //     .then((res) => {
+  //       console.log('playing' + res.path())
+  //       // Step 2: Play the audio file
+  //       const sound = new Sound('http://localhost:8000/get-audio', Sound.MAIN_BUNDLE, (error) => {
+  //         console.log('sound')
+  //         if (error) {
+  //           console.error('Failed to load sound', error);
+  //           return;
+  //         }
+  //         // Play the sound
+  //         sound.play((success) => {
+  //           if (!success) {
+  //             console.log('Sound did not play');
+  //           }
+  //         });
+  //       });
+  //       console.log(sound)
+
+  //       console.log('done')
+  //     })
+  //     .catch((error) => {
+  //       console.error('Error fetching audio', error);
+  //     });
+  // };
+
+  const fetchAudio = async () => {
+    const audioUrl = 'http://localhost:8000/get-audio'; // Update this URL if needed
+    console.log('Playing audio from:', audioUrl);
+
+    const sound = new Sound(audioUrl, Sound.MAIN_BUNDLE, (error) => {
+      if (error) {
+        console.error('Failed to load sound', error);
+        return;
+      }
+      console.log('Sound loaded successfully:', sound);
+      
+      // Play the sound
+      sound.play((success) => {
+        if (!success) {
+          console.log('Sound did not play');
+        }
+      });
+    });
   };
 
   useEffect(() => {

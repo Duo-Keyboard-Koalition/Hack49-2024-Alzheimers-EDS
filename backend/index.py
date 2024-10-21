@@ -1,16 +1,23 @@
 from fastapi import FastAPI, File, UploadFile
+from fastapi.responses import FileResponse
 import boto3
 import os
 from dotenv import load_dotenv
 import torch
 import torchaudio
 from pydub import AudioSegment
+import speech_recognition as sr
 
-
+from chat import chat
+from tts import tts
 from model import EncoderDecoder, Decoder
+
+# Load environment variables from .env file
+load_dotenv()
 
 bundle = torchaudio.pipelines.WAV2VEC2_ASR_BASE_960H
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+recognizer = sr.Recognizer()
 
 def load_model(model_path):
     # Initialize the model architecture
@@ -28,6 +35,22 @@ def predict(file):
     sound = AudioSegment.from_file(file, format="m4a")
     sound.export(f"{filename}.wav", format="wav")
 
+    with sr.AudioFile(filename + ".wav") as source:
+        audio = recognizer.record(source)
+
+    try:
+        text = recognizer.recognize_google(audio)
+        gem_resp = chat(text)['candidates'][0]['content']['parts'][0]['text']
+        print("Text recognized: ", text)
+        print("Gem:", gem_resp)
+
+        tts(gem_resp)
+
+    except sr.UnknownValueError:
+        print("Google Speech Recognition could not understand the audio")
+    except sr.RequestError as e:
+        print(f"Could not request results from Google Speech Recognition service; {e}")
+
     waveform, sample_rate = torchaudio.load(filename + ".wav")
     if sample_rate != bundle.sample_rate:
         waveform = torchaudio.functional.resample(waveform, sample_rate, bundle.sample_rate)
@@ -42,9 +65,6 @@ def predict(file):
 
 model_path = './hack49_encoder_decoder_model.pth'
 model = load_model(model_path)
-
-# Load environment variables from .env file
-load_dotenv()
 
 os.makedirs("/tmp", exist_ok=True)
 
@@ -71,7 +91,7 @@ def read_item(item_id: int, q: str = None):
     return {"item_id": item_id, "q": q}
 
 @app.post("/uploadfile/")
-async def create_upload_file(file: UploadFile = File(...)):
+async def upload_and_classify(file: UploadFile = File(...)):
     # Define the path where the file will be temporarily saved (optional)
     print("This is create upload function starts")
     temp_file_path = f"/tmp/{file.filename}"  # Temporary storage location
@@ -100,3 +120,15 @@ async def create_upload_file(file: UploadFile = File(...)):
     print(file.filename)
     return {"prediction": predict(file.filename)} # return prediction
 
+@app.get("/get-audio")
+async def get_audio():
+    # Path to your audio file
+    audio_file_path = "output.mp3"
+    print('audio req received')
+
+    # Check if the file exists
+    if os.path.exists(audio_file_path):
+        print('responding with audio')
+        return FileResponse(path=audio_file_path, media_type='audio/mpeg', filename="output.mp3")
+    else:
+        return {"error": "Audio file not found"}, 404
