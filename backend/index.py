@@ -15,6 +15,8 @@ from model import EncoderDecoder, TimeSeriesClassifier
 # Load environment variables from .env file
 load_dotenv()
 
+THRESHOLD = 0.5
+
 bundle = torchaudio.pipelines.WAV2VEC2_ASR_BASE_960H
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 recognizer = sr.Recognizer()
@@ -45,11 +47,11 @@ def predict(file):
 
     try:
         text = recognizer.recognize_google(audio)
-        gem_resp = chat(text)['candidates'][0]['content']['parts'][0]['text']
+        # gem_resp = chat(text)
         print("Text recognized: ", text)
-        print("Gem:", gem_resp)
+        # print("Gem:", gem_resp)
 
-        tts(gem_resp)
+        # tts(gem_resp)
 
     except sr.UnknownValueError:
         print("Google Speech Recognition could not understand the audio")
@@ -66,7 +68,15 @@ def predict(file):
         prediction = model(waveform)
         print(prediction)
 
-    return prediction.item()
+    prediction = prediction.item()
+    if prediction > THRESHOLD:
+        gem = chat(text, healthy=False)
+    else:
+        gem = chat(text)
+
+    tts(gem)
+
+    return prediction
 
 model_path = './hack49_encoder_decoder_model.pth'
 model = load_model(model_path)
@@ -122,7 +132,8 @@ async def upload_and_classify(file: UploadFile = File(...)):
     download_from_s3(BUCKET_NAME, file.filename, file.filename)
 
     print(file.filename)
-    return {"prediction": predict(file.filename)} # return prediction
+    prediction = predict(file.filename)
+    return {"prediction": prediction} # return prediction
 
 @app.get("/get-audio")
 async def get_audio():
