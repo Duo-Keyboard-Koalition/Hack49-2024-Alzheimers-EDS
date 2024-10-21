@@ -28,6 +28,7 @@ function App(): React.JSX.Element {
           console.warn('Audio permission denied');
           return; // Exit if audio permission is denied
         }
+        6;
       } catch (err) {
         console.warn(err);
       }
@@ -38,7 +39,7 @@ function App(): React.JSX.Element {
   const startRecording = async (): Promise<void> => {
     try {
       setRecording(true);
-      const path = `${RNFS.DocumentDirectoryPath}/${Date.now()}.mp3`; // Use app's private storage
+      const path = `${RNFS.DocumentDirectoryPath}/${Date.now()}.wav`; // Use app's private storage
       const result = await audioRecorderPlayer.startRecorder(path);
       setRecordingPath(result);
       audioRecorderPlayer.addRecordBackListener(e => {
@@ -90,14 +91,54 @@ function App(): React.JSX.Element {
     }
   };
 
-  // Classify the recording (placeholder function)
+  // Function to upload audio to the server
+  const uploadAudioToServer = async (uri: string) => {
+    // Check if the file exists
+    const fileExists = await RNFS.exists(uri);
+    if (!fileExists) {
+      console.error('File does not exist at the specified path:', uri);
+      return;
+    }
+
+    const formData = new FormData();
+
+    // Extract the file name from the recordingPath
+    const fileName = uri.substring(uri.lastIndexOf('/') + 1);
+    console.log('This is filename: ', fileName);
+
+    formData.append('file', {
+      uri: uri,
+      type: 'audio/wav',
+      name: fileName,
+    });
+
+    try {
+      console.log('Uploading: ');
+      // Phone : http://localhost:8801/uploadfile/
+      // Emulator : http://10.0.2.2:8801/uploadfile/
+      const response = await fetch('http://localhost:8801/uploadfile/', {
+        method: 'POST',
+        body: formData,
+      });
+      console.log('Success', response);
+      const data = await response.json();
+      console.log('Upload Response:', data); // Log the server response
+    } catch (error) {
+      console.error('Error uploading audio file:', error);
+    }
+  };
+
+  // Classify the recording and upload to the server
   const classifyRecording = async (): Promise<void> => {
     if (!recordingPath) {
       console.warn('No recording available to classify.');
       return;
     }
+
     console.log('Classifying recording at:', recordingPath);
-    // Implement your classification logic here
+
+    // Call the upload function
+    await uploadAudioToServer(recordingPath);
   };
 
   useEffect(() => {
