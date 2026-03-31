@@ -105,6 +105,14 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+
+    // Keep native libs in modern packaging mode so APK/AAB alignment is handled
+    // correctly for newer Android page-size compatibility checks.
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging false
+        }
+    }
 }
 
 dependencies {
